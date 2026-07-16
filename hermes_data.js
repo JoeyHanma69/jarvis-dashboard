@@ -1,11 +1,11 @@
-// JARVIS_DATA — single source of truth for the dashboard.
+// HERMES_DATA — single source of truth for the dashboard.
 // This is the only file you should need to touch day to day.
 // Edit the values below (or generate them from a script) and refresh dashboard.html.
-window.JARVIS_DATA = {
+window.HERMES_DATA = {
   greeting: "Good evening, sir. I trust the day has been kind to you.",
 
-  // Powers "Ask JARVIS anything" by voice — free-form questions after "Hey JARVIS"
-  // are answered by the Gemini API with Google Search grounding, so JARVIS can
+  // Powers "Ask HERMES anything" by voice — free-form questions after "Hey Hermes"
+  // are answered by the Gemini API with Google Search grounding, so HERMES can
   // speak with real up-to-date information, not just a frozen training cutoff.
   //
   // 1. Get a key at https://aistudio.google.com/apikey
@@ -60,7 +60,7 @@ window.JARVIS_DATA = {
   // one-time seed for the to-do list on the dashboard's very first load.
   // After that, the list lives in the browser's localStorage — check things
   // off, delete them, or add new ones on the page (or by voice) and this
-  // array is ignored. Delete localStorage's "jarvis_tasks_v1" key to reseed.
+  // array is ignored. Delete localStorage's "hermes_tasks_v1" key to reseed.
   priorities: [
     "Skim the GPT-5.6 model card before your 10am call",
     "Clear the three flagged emails sitting in Gmail",

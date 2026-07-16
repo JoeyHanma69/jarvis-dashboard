@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>J.A.R.V.I.S. — Command Center</title>
+<title>H.E.R.M.E.S. — Command Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -307,14 +307,14 @@
 <div class="noise-sweep"></div>
 <div class="corner-frame"></div>
 
-<audio id="brief-audio" src="jarvis_brief.mp3" preload="none"></audio>
+<audio id="brief-audio" src="hermes_brief.mp3" preload="none"></audio>
 
 <div class="hud">
 
   <div class="top-row">
     <div class="brand">
-      <h1>J.A.R.V.I.S.</h1>
-      <div class="sub" id="greeting-text">PERSONAL INTELLIGENCE SYSTEM</div>
+      <h1>H.E.R.M.E.S.</h1>
+      <div class="sub" id="greeting-text">HOLISTIC EXECUTIVE RESPONSE MANAGEMENT &amp; ENGAGEMENT SYSTEM</div>
       <div class="date" id="date-text">—</div>
     </div>
     <div class="top-right">
@@ -369,16 +369,16 @@
 
 </div>
 
-<script src="jarvis_data.js"></script>
+<script src="hermes_data.js"></script>
 <script>
 (function(){
   "use strict";
-  var DATA = window.JARVIS_DATA || {};
+  var DATA = window.HERMES_DATA || {};
 
-  // Ask JARVIS anything by voice — calls the Gemini API directly from the browser
+  // Ask HERMES anything by voice — calls the Gemini API directly from the browser
   // with Google Search grounding enabled, so answers can reflect real up-to-date
   // information instead of a frozen training cutoff. Put your own key in
-  // jarvis_data.js (DATA.gemini.apiKey) — restrict it by HTTP referrer in Google
+  // hermes_data.js (DATA.gemini.apiKey) — restrict it by HTTP referrer in Google
   // Cloud Console to this site's domain so a copied key can't be reused elsewhere.
   // See README.md for full setup. Never put a real key directly in this file.
   var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -455,7 +455,7 @@
      TASKS — interactive to-do list, persisted in localStorage
      (seeded once from DATA.priorities, then lives independently)
   ============================================================ */
-  var TASKS_KEY = 'jarvis_tasks_v1';
+  var TASKS_KEY = 'hermes_tasks_v1';
 
   function loadTasks(){
     try {
@@ -687,7 +687,7 @@
      current date, real open tasks, real live-fetched headlines —
      via the browser's built-in speech synthesis, so it's never
      reading stale, pre-recorded content. Falls back to the static
-     jarvis_brief.mp3 only if the browser has no speech synthesis.
+     hermes_brief.mp3 only if the browser has no speech synthesis.
   ============================================================ */
   var briefBtn = document.getElementById('brief-btn');
   var audio = document.getElementById('brief-audio');
@@ -789,7 +789,7 @@
     var tasksList = (context.tasks && context.tasks.length) ? context.tasks.join('; ') : 'none';
     var newsList = (context.news && context.news.length) ? context.news.join('; ') : 'none available';
     return [
-      'You are J.A.R.V.I.S., a dry-witted, unfailingly polite British AI butler and personal assistant living inside a desktop dashboard.',
+      'You are H.E.R.M.E.S., a dry-witted, unfailingly polite British AI butler and personal assistant living inside a desktop dashboard.',
       'Always address the user as "sir". Keep answers SHORT: 1 to 3 sentences maximum.',
       'Your answer will be read aloud by text-to-speech, so never use markdown, lists, headers, asterisks, or emoji — plain spoken sentences only.',
       'Live context from the dashboard right now:',
@@ -817,15 +817,15 @@
     return parts.length ? parts.join(' ') : null;
   }
 
-  // "Hey JARVIS, <any question>" — sent to the Gemini API with Google Search
+  // "Hey Hermes, <any question>" — sent to the Gemini API with Google Search
   // grounding, so it can answer with real current information, then spoken back.
-  function askJarvis(question){
+  function askHermes(question){
     pushLog('VOICE', 'question — ' + question);
     setVoiceStatus('voice-thinking', 'VOICE: THINKING…');
 
     var apiKey = DATA.gemini && DATA.gemini.apiKey;
     if (!apiKey || /YOUR[_-]?GEMINI/i.test(apiKey)){
-      pushLog('SYS', 'no Gemini API key set — add one in jarvis_data.js (DATA.gemini.apiKey)');
+      pushLog('SYS', 'no Gemini API key set — add one in hermes_data.js (DATA.gemini.apiKey)');
       speakText("My apologies, sir — I don't have a reasoning engine configured yet. A Gemini API key needs adding to the data file.");
       return;
     }
@@ -857,7 +857,7 @@
           return;
         }
         var answer = extractInteractionText(data) || "My apologies, sir — I've nothing to say to that just now.";
-        pushLog('JARVIS', answer.trim(), true);
+        pushLog('HERMES', answer.trim(), true);
         speakText(answer.trim());
       })
       .catch(function(){
@@ -879,28 +879,27 @@
   });
 
   // expose for the render loop
-  window.__jarvisIsSpeaking = function(){ return speaking; };
+  window.__hermesIsSpeaking = function(){ return speaking; };
 
   /* ============================================================
-     VOICE ACTIVATION — wake word ("Hey JARVIS") via Web Speech API
+     VOICE ACTIVATION — wake word ("Hey Hermes") via Web Speech API
      Note: browsers only expose the microphone on secure contexts
      (https:// or http://localhost). Opened as a bare file:// page,
      most Chromium builds silently refuse mic access — serve this
      folder over localhost if the status pill says MIC BLOCKED.
 
-     After "Hey JARVIS", a few phrases are handled as canned commands
+     After "Hey Hermes", a few phrases are handled as canned commands
      (brief me, add task, what's first, stop). Anything else is treated
      as an open-ended question: once you pause for ~1.4s, it's sent to
-     ASK_ENDPOINT (a small serverless proxy that calls Claude with your
-     own API key, kept server-side) and the answer is spoken back.
+     the Gemini API with Google Search grounding and the answer is spoken back.
   ============================================================ */
   var SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
   var recognition = null;
   var voiceEnabled = false;
-  var voiceSuppressed = false;   // true while JARVIS is talking, to avoid hearing itself
+  var voiceSuppressed = false;   // true while HERMES is talking, to avoid hearing itself
   var awaitingCommand = false;
   var awaitingTimer = null;
-  var WAKE_WORDS = ['hey jarvis', 'hey, jarvis', 'ok jarvis', 'okay jarvis', 'jarvis'];
+  var WAKE_WORDS = ['hey hermes', 'hey, hermes', 'ok hermes', 'okay hermes', 'hermes'];
   var COMMAND_WINDOW_MS = 6000;
   var pendingQuestion = '';
   var questionSilenceTimer = null;
@@ -919,7 +918,7 @@
     var t = original.toLowerCase();
     if (!t) return;
 
-    // while JARVIS is speaking, only listen for an interrupt
+    // while HERMES is speaking, only listen for an interrupt
     if (speaking){
       if (/stop|quiet|cancel|silence|that's enough|thats enough/.test(t)){
         pushLog('VOICE', 'command — stop', true);
@@ -937,7 +936,7 @@
         clearTimeout(awaitingTimer);
         awaitingTimer = setTimeout(function(){
           awaitingCommand = false;
-          setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+          setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
         }, COMMAND_WINDOW_MS);
       }
       return;
@@ -949,20 +948,20 @@
       var prefixLen = addMatch.index + (addMatch[0].length - addMatch[1].length);
       var taskText = original.slice(prefixLen).trim();
       clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
-      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
       if (taskText) addTask(taskText);
     } else if (/^\s*(brief|briefing)\s*(me)?\s*$/.test(t) || /give me the briefing/.test(t)){
       clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
-      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
       pushLog('VOICE', 'command — brief me');
       startSpeaking();
     } else if (/handle first|priorit|what.?s first|first thing/.test(t)){
       clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
-      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
       document.getElementById('ask-btn').click();
     } else if (/^\s*(stop|cancel|never ?mind)\s*$/.test(t)){
       clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
-      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+      setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
       pushLog('VOICE', 'command cancelled');
     } else {
       // no canned command matched — treat it as an open-ended question.
@@ -975,13 +974,13 @@
         pendingQuestion = '';
         clearTimeout(awaitingTimer);
         awaitingCommand = false;
-        if (q) askJarvis(q);
+        if (q) askHermes(q);
       }, QUESTION_SILENCE_MS);
 
       clearTimeout(awaitingTimer);
       awaitingTimer = setTimeout(function(){
         awaitingCommand = false;
-        setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+        setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
       }, COMMAND_WINDOW_MS);
     }
   }
@@ -1027,7 +1026,7 @@
     } else {
       try { recognition.start(); } catch(e){}
       setVoiceStatus(awaitingCommand ? 'voice-awaiting' : 'voice-armed',
-        awaitingCommand ? 'VOICE: YES, SIR?' : 'VOICE: ON — SAY "HEY JARVIS"');
+        awaitingCommand ? 'VOICE: YES, SIR?' : 'VOICE: ON — SAY "HEY HERMES"');
     }
   }
 
@@ -1037,7 +1036,7 @@
       voiceEnabled = true;
       try {
         recognition.start();
-        setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+        setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY HERMES"');
         pushLog('VOICE', 'listening — try "brief me", "what should I handle first", "add task …", or just ask me anything');
       } catch(e){
         setVoiceStatus('voice-error', 'VOICE: MIC BLOCKED (use http://localhost)');
@@ -1293,7 +1292,7 @@
     var dt = Math.min(0.05, now - lastT);
     lastT = now;
 
-    var isSpeaking = window.__jarvisIsSpeaking();
+    var isSpeaking = window.__hermesIsSpeaking();
     updateEnvelope(dt, isSpeaking);
 
     ctx.clearRect(0, 0, W, H);
