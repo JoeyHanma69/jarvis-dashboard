@@ -375,14 +375,15 @@
   "use strict";
   var DATA = window.HERMES_DATA || {};
 
-  // Ask HERMES anything by voice — calls the Gemini API directly from the browser
-  // with Google Search grounding enabled, so answers can reflect real up-to-date
-  // information instead of a frozen training cutoff. Put your own key in
-  // hermes_data.js (DATA.gemini.apiKey) — restrict it by HTTP referrer in Google
-  // Cloud Console to this site's domain so a copied key can't be reused elsewhere.
-  // See README.md for full setup. Never put a real key directly in this file.
-  var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
-  var GEMINI_MODEL = (DATA.gemini && DATA.gemini.model) || "gemini-3.5-flash";
+  // Ask HERMES anything by voice — calls Groq's free, fast LLM API directly from
+  // the browser (OpenAI-compatible chat completions). No live web search here —
+  // answers come from the model's own training knowledge plus the live dashboard
+  // context (date, open tasks, recent headlines) built below. Put your own key in
+  // hermes_data.js (DATA.groq.apiKey). Groq keys can't be domain-restricted the
+  // way Google's can, so never commit a real key to this public repo — keep
+  // hermes_data.js's real value local-only. See README.md for full setup.
+  var GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+  var GROQ_MODEL = (DATA.groq && DATA.groq.model) || "llama-3.3-70b-versatile";
 
   /* ============================================================
      HUD DATA BINDING
@@ -796,37 +797,21 @@
       "Today's date: " + (context.date || 'unknown'),
       'Open tasks: ' + tasksList,
       'Recent tech/AI headlines: ' + newsList,
-      "Use this context when it's relevant (tasks, today's date, the news), but you may also answer general knowledge questions outside that context."
+      "Use this context when it's relevant (tasks, today's date, the news). For anything else, answer from your own knowledge, but if you're not confident or the question needs current information you don't have, say so honestly rather than guessing."
     ].join('\n');
   }
 
-  // Pulls the model's final answer text out of an Interactions API response.
-  // The REST response is a "steps" array (thoughts, search calls, model output);
-  // we want the text content block(s) from the model_output step.
-  function extractInteractionText(data){
-    if (!data) return null;
-    if (typeof data.output_text === 'string' && data.output_text) return data.output_text;
-    var parts = [];
-    (data.steps || []).forEach(function(step){
-      if (step.type === 'model_output' && Array.isArray(step.content)){
-        step.content.forEach(function(block){
-          if (block.type === 'text' && block.text) parts.push(block.text);
-        });
-      }
-    });
-    return parts.length ? parts.join(' ') : null;
-  }
-
-  // "Hey Hermes, <any question>" — sent to the Gemini API with Google Search
-  // grounding, so it can answer with real current information, then spoken back.
+  // "Hey Hermes, <any question>" — sent to Groq's chat completions endpoint
+  // (OpenAI-compatible), then the answer is spoken back. No live web search —
+  // just the model's training knowledge plus the dashboard context above.
   function askHermes(question){
     pushLog('VOICE', 'question — ' + question);
     setVoiceStatus('voice-thinking', 'VOICE: THINKING…');
 
-    var apiKey = DATA.gemini && DATA.gemini.apiKey;
-    if (!apiKey || /YOUR[_-]?GEMINI/i.test(apiKey)){
-      pushLog('SYS', 'no Gemini API key set — add one in hermes_data.js (DATA.gemini.apiKey)');
-      speakText("My apologies, sir — I don't have a reasoning engine configured yet. A Gemini API key needs adding to the data file.");
+    var apiKey = DATA.groq && DATA.groq.apiKey;
+    if (!apiKey || /YOUR[_-]?GROQ/i.test(apiKey)){
+      pushLog('SYS', 'no Groq API key set — add one in hermes_data.js (DATA.groq.apiKey)');
+      speakText("My apologies, sir — I don't have a reasoning engine configured yet. A Groq API key needs adding to the data file.");
       return;
     }
 
@@ -836,32 +821,37 @@
       news: newsCache.slice(0, 5).map(function(n){ return stripPoints(n.headline) + ' (' + n.source + ')'; })
     };
 
-    fetch(GEMINI_ENDPOINT, {
+    fetch(GROQ_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
+        'Authorization': 'Bearer ' + apiKey
       },
       body: JSON.stringify({
-        model: GEMINI_MODEL,
-        system_instruction: buildAskSystemPrompt(context),
-        input: question,
-        tools: [{ type: 'google_search' }]
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: buildAskSystemPrompt(context) },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.5,
+        max_tokens: 200
       })
     })
       .then(function(r){ return r.json().catch(function(){ return {}; }); })
       .then(function(data){
         if (data && data.error){
-          pushLog('SYS', 'Gemini error — ' + (data.error.message || 'unknown'));
+          pushLog('SYS', 'Groq error — ' + (data.error.message || 'unknown'));
           speakText("My apologies, sir — my reasoning engine returned an error just now.");
           return;
         }
-        var answer = extractInteractionText(data) || "My apologies, sir — I've nothing to say to that just now.";
+        var answer = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+          ? data.choices[0].message.content
+          : "My apologies, sir — I've nothing to say to that just now.";
         pushLog('HERMES', answer.trim(), true);
         speakText(answer.trim());
       })
       .catch(function(){
-        pushLog('SYS', 'could not reach Gemini — check your connection and API key');
+        pushLog('SYS', 'could not reach Groq — check your connection and API key');
         speakText("My apologies, sir — I couldn't reach my reasoning engine just now.");
       });
   }
@@ -891,7 +881,7 @@
      After "Hey Hermes", a few phrases are handled as canned commands
      (brief me, add task, what's first, stop). Anything else is treated
      as an open-ended question: once you pause for ~1.4s, it's sent to
-     the Gemini API with Google Search grounding and the answer is spoken back.
+     Groq's chat completions API, and the answer is spoken back.
   ============================================================ */
   var SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
   var recognition = null;

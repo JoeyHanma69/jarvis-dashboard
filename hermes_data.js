@@ -5,21 +5,22 @@ window.HERMES_DATA = {
   greeting: "Good evening, sir. I trust the day has been kind to you.",
 
   // Powers "Ask HERMES anything" by voice — free-form questions after "Hey Hermes"
-  // are answered by the Gemini API with Google Search grounding, so HERMES can
-  // speak with real up-to-date information, not just a frozen training cutoff.
+  // are answered by Groq's free LLM API. Fast and free, but no live web search —
+  // answers come from the model's training knowledge plus the dashboard's own
+  // live context (date, tasks, headlines), not real-time lookups.
   //
-  // 1. Get a key at https://aistudio.google.com/apikey
-  // 2. In Google Cloud Console, restrict that key by HTTP referrer to your site
-  //    (e.g. https://joeyhanma69.github.io/*) so a copied key is useless elsewhere.
-  // 3. Paste the restricted key below, replacing the placeholder.
+  // 1. Get a free key at https://console.groq.com/keys (no credit card needed).
+  // 2. Paste it below, replacing the placeholder.
   //
-  // NEVER paste a key into a chat, issue, or commit message — only here, in a
-  // file that stays local to you (this repo is public, so a real key here would
-  // still be visible to anyone browsing it on GitHub; keep this file untracked
-  // or swap in a restricted key you're comfortable being public-but-limited).
-  gemini: {
-    apiKey: "YOUR_GEMINI_API_KEY_HERE",
-    model: "gemini-3.5-flash"
+  // IMPORTANT — unlike Google's keys, Groq keys can't be restricted by domain/
+  // referrer. This repo is public, so a real key committed here is visible to
+  // anyone browsing it on GitHub and could be used against your free-tier quota.
+  // NEVER commit a real key: keep this line's value local-only (edit it after
+  // pulling, don't push the change), or accept the risk knowingly since the
+  // free tier is rate-limited (worst case is your quota gets used up, not billed).
+  groq: {
+    apiKey: "YOUR_GROQ_API_KEY_HERE",
+    model: "llama-3.3-70b-versatile"
   },
   // NOTE: date/time are no longer read from here — the dashboard always
   // shows and speaks the real current date and clock, computed live in
