@@ -13,9 +13,11 @@ A cinematic, self-contained command-center dashboard in the style of Iron Man's 
 
 ## Running it
 
-Open `dashboard.html` directly in a browser and everything works **except the microphone** (voice activation). Browsers refuse mic access on bare `file://` pages.
+**Live on GitHub Pages:** https://joeyhanma69.github.io/jarvis-dashboard/ — voice activation works here out of the box, since Pages serves over HTTPS and browsers only allow microphone access on secure origins.
 
-To get voice control working, serve the folder over localhost instead:
+**Locally:** opening `dashboard.html` directly (`file://`) works for everything *except the microphone* — browsers refuse mic access on bare `file://` pages. Double-click **`start-jarvis.bat`** to fix that: it starts a local static server and opens the dashboard at `http://localhost:8765/dashboard.html`, which counts as secure. Close the "JARVIS local server" console window it opens to stop the server.
+
+Doing it by hand instead:
 
 ```bash
 python -m http.server 8765
@@ -33,7 +35,8 @@ Then open `http://localhost:8765/dashboard.html`.
   - *"what should I handle first"* — reads out your top open task
   - *"add task \<whatever\>"* / *"remember to \<whatever\>"* — adds a task
   - *"stop"* — cancels, and works as a barge-in mid-briefing
-- **Spoken briefing** — clicking **BRIEF ME** plays `jarvis_brief.mp3` and pulses the sphere to a synthetic speech envelope (a smoothed random walk, not real audio analysis), so it still reacts even if the mp3 fails to load.
+- **Self-aware spoken briefing** — clicking **BRIEF ME** builds a briefing sentence fresh, at click-time, from the real current date, your actual open tasks, and the live-fetched news, then speaks it with the browser's built-in speech synthesis (prefers a British `en-GB` male voice if one is installed). It's never reading stale, pre-recorded content. `jarvis_brief.mp3` / `jarvis_brief.txt` are kept only as a fallback for browsers with no speech synthesis support.
+- **Live date and clock** — the date and time in the top-left/top-right are computed from the browser's real clock on every tick, not read from `jarvis_data.js`. Nothing to keep updated by hand.
 
 ## Editing
 
@@ -42,7 +45,6 @@ Almost everything you'd want to change day to day lives in `jarvis_data.js`:
 ```js
 window.JARVIS_DATA = {
   greeting: "...",
-  generatedDate: "...",
   connectors: [ { name, status } ],
   content: { pulse: [ { label, value } ] },
   news: [ { source, headline, time } ],   // fallback only — live fetch overrides this
@@ -52,9 +54,12 @@ window.JARVIS_DATA = {
 };
 ```
 
-To regenerate the spoken briefing after editing `jarvis_brief.txt`, use any TTS tool of your choice — it was originally generated with [edge-tts](https://github.com/rany2/edge-tts) (`en-GB-RyanNeural`, `--rate=-8% --pitch=-3Hz`).
+Date/time are no longer part of the data file — the dashboard always shows and speaks the real current date and clock.
+
+`jarvis_brief.mp3` / `jarvis_brief.txt` are legacy fallback assets for browsers without speech synthesis support. To regenerate them after editing `jarvis_brief.txt`, use any TTS tool of your choice — they were originally generated with [edge-tts](https://github.com/rany2/edge-tts) (`en-GB-RyanNeural`, `--rate=-8% --pitch=-3Hz`).
 
 ## Notes
 
 - Built as a single HTML file on purpose — no npm install, no build tooling. Open it and it works.
 - The AI PULSE stat panel is a static daily snapshot from `jarvis_data.js`; only the news headlines themselves refresh live.
+- Voice activation (wake word + microphone) needs a secure context: the GitHub Pages URL, or `http://localhost` via `start-jarvis.bat`. Plain `file://` will show "MIC BLOCKED" on the VOICE pill.
