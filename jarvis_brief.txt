@@ -1,0 +1,17 @@
+Good evening, sir. I trust the day has been kind to you.
+
+Here is your briefing for the sixteenth of July.
+
+Across your connectors: Gmail, Calendar, GitHub and your News Feed are online and behaving themselves. Slack and Notion, I'm afraid, remain offline. I shall keep an eye on them.
+
+Now, the headlines. OpenAI has begun rolling out GPT-5.6, arriving in three flavours — Sol, Terra and Luna — alongside a new Ultra reasoning mode. Not to be outdone, Anthropic shipped Claude Sonnet 5, and has redeployed Claude Fable 5 now that the export-control order has been lifted.
+
+On the markets, Alibaba jumped five percent after its Qwen model was tapped to power Apple Intelligence in China, and Mitsubishi Heavy Industries rose nearly five percent on a data-centre cooling partnership with Nvidia.
+
+Elsewhere, Meta has expanded its disclosure labels for AI-generated advertising, and Google has opened an Applied AI Lab for researchers and founders in Accra.
+
+In short: three major labs shipped this week, and the market noticed.
+
+As for your day, sir — I'd suggest starting with the GPT-5.6 model card before your ten o'clock call, then clearing the three flagged emails waiting in Gmail. Do also note that Wednesday afternoon has a scheduling clash worth resolving.
+
+I remain, as ever, at your service.
