@@ -126,6 +126,7 @@
   .dot.voice-awaiting{background:var(--amber);box-shadow:0 0 10px 3px var(--amber-glow);animation:blinkDot .6s steps(1) infinite;}
   .dot.voice-off{background:#3a4a56;box-shadow:none;animation:none;}
   .dot.voice-error{background:#ff5b5b;box-shadow:0 0 8px 2px rgba(255,91,91,.7);animation:none;}
+  .dot.voice-thinking{background:var(--cyan);box-shadow:0 0 10px 3px var(--cyan-glow);animation:blinkDot .35s steps(1) infinite;}
 
   /* ---------- middle row: log + stats ---------- */
   .mid-row{display:flex;justify-content:space-between;align-items:stretch;flex:1;padding:26px 0;gap:20px;}
@@ -373,6 +374,11 @@
 (function(){
   "use strict";
   var DATA = window.JARVIS_DATA || {};
+
+  // Ask JARVIS anything by voice — points at the tiny serverless proxy that holds
+  // the Claude API key server-side (see the jarvis-ask-api repo). Replace this with
+  // your own deployment URL once it's live, e.g. "https://jarvis-ask-api.vercel.app/api/ask".
+  var ASK_ENDPOINT = "https://jarvis-ask-api.vercel.app/api/ask";
 
   /* ============================================================
      HUD DATA BINDING
@@ -741,13 +747,13 @@
     suppressVoiceForSpeech(false);
   }
 
-  function startSpeaking(){
+  function speakText(text){
     clearTimeout(speakEndTimer);
     setSpeaking(true);
     suppressVoiceForSpeech(true);
 
     if (synth){
-      var utter = new SpeechSynthesisUtterance(buildBriefingText());
+      var utter = new SpeechSynthesisUtterance(text);
       if (chosenVoice) utter.voice = chosenVoice;
       utter.rate = 0.97;
       utter.pitch = 0.9;
@@ -759,6 +765,7 @@
     }
 
     // fallback for browsers with no speech synthesis: play the static mp3
+    // (only meaningful for the canned BRIEF ME briefing, not free-form answers)
     try {
       audio.currentTime = 0;
       var p = audio.play();
@@ -768,6 +775,39 @@
     } catch(e){
       speakEndTimer = setTimeout(stopSpeaking, FALLBACK_SPEAK_MS);
     }
+  }
+
+  function startSpeaking(){
+    speakText(buildBriefingText());
+  }
+
+  // "Hey JARVIS, <any question>" — sent to a serverless proxy that calls Claude
+  // server-side (no API key ever touches the browser) and speaks back the answer.
+  function askJarvis(question){
+    pushLog('VOICE', 'question — ' + question);
+    setVoiceStatus('voice-thinking', 'VOICE: THINKING…');
+
+    var context = {
+      date: formatDateLong(new Date()),
+      tasks: tasks.filter(function(t){ return !t.done; }).map(function(t){ return t.text; }),
+      news: newsCache.slice(0, 5).map(function(n){ return stripPoints(n.headline) + ' (' + n.source + ')'; })
+    };
+
+    fetch(ASK_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: question, context: context })
+    })
+      .then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(data){
+        var answer = (data && data.answer) || "My apologies, sir — I've nothing to say to that just now.";
+        pushLog('JARVIS', answer, true);
+        speakText(answer);
+      })
+      .catch(function(){
+        pushLog('SYS', 'ask endpoint unreachable — is ASK_ENDPOINT configured?');
+        speakText("My apologies, sir — I couldn't reach my reasoning core just now.");
+      });
   }
 
   audio.addEventListener('ended', stopSpeaking);
@@ -791,6 +831,12 @@
      (https:// or http://localhost). Opened as a bare file:// page,
      most Chromium builds silently refuse mic access — serve this
      folder over localhost if the status pill says MIC BLOCKED.
+
+     After "Hey JARVIS", a few phrases are handled as canned commands
+     (brief me, add task, what's first, stop). Anything else is treated
+     as an open-ended question: once you pause for ~1.4s, it's sent to
+     ASK_ENDPOINT (a small serverless proxy that calls Claude with your
+     own API key, kept server-side) and the answer is spoken back.
   ============================================================ */
   var SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
   var recognition = null;
@@ -800,6 +846,9 @@
   var awaitingTimer = null;
   var WAKE_WORDS = ['hey jarvis', 'hey, jarvis', 'ok jarvis', 'okay jarvis', 'jarvis'];
   var COMMAND_WINDOW_MS = 6000;
+  var pendingQuestion = '';
+  var questionSilenceTimer = null;
+  var QUESTION_SILENCE_MS = 1400;   // how long to wait for a pause before treating speech as a finished question
 
   var voiceDot = document.getElementById('voice-dot');
   var voiceLabel = document.getElementById('voice-label');
@@ -843,24 +892,42 @@
     if (addMatch && addMatch[1]){
       var prefixLen = addMatch.index + (addMatch[0].length - addMatch[1].length);
       var taskText = original.slice(prefixLen).trim();
-      clearTimeout(awaitingTimer); awaitingCommand = false;
+      clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
       setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
       if (taskText) addTask(taskText);
-    } else if (/brief|briefing/.test(t)){
-      clearTimeout(awaitingTimer); awaitingCommand = false;
+    } else if (/^\s*(brief|briefing)\s*(me)?\s*$/.test(t) || /give me the briefing/.test(t)){
+      clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
       setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
       pushLog('VOICE', 'command — brief me');
       startSpeaking();
     } else if (/handle first|priorit|what.?s first|first thing/.test(t)){
-      clearTimeout(awaitingTimer); awaitingCommand = false;
+      clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
       setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
       document.getElementById('ask-btn').click();
-    } else if (/stop|cancel|never mind|nevermind/.test(t)){
-      clearTimeout(awaitingTimer); awaitingCommand = false;
+    } else if (/^\s*(stop|cancel|never ?mind)\s*$/.test(t)){
+      clearTimeout(awaitingTimer); clearTimeout(questionSilenceTimer); pendingQuestion = ''; awaitingCommand = false;
       setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
       pushLog('VOICE', 'command cancelled');
+    } else {
+      // no canned command matched — treat it as an open-ended question.
+      // Wait for a short pause (they've stopped talking) before sending it off,
+      // and keep extending the listening window while they're still speaking.
+      pendingQuestion = original;
+      clearTimeout(questionSilenceTimer);
+      questionSilenceTimer = setTimeout(function(){
+        var q = pendingQuestion;
+        pendingQuestion = '';
+        clearTimeout(awaitingTimer);
+        awaitingCommand = false;
+        if (q) askJarvis(q);
+      }, QUESTION_SILENCE_MS);
+
+      clearTimeout(awaitingTimer);
+      awaitingTimer = setTimeout(function(){
+        awaitingCommand = false;
+        setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
+      }, COMMAND_WINDOW_MS);
     }
-    // anything else: keep the command window open until it times out
   }
 
   function initRecognition(){
@@ -915,7 +982,7 @@
       try {
         recognition.start();
         setVoiceStatus('voice-armed', 'VOICE: ON — SAY "HEY JARVIS"');
-        pushLog('VOICE', 'listening — try "brief me", "what should I handle first", or "add task …"');
+        pushLog('VOICE', 'listening — try "brief me", "what should I handle first", "add task …", or just ask me anything');
       } catch(e){
         setVoiceStatus('voice-error', 'VOICE: MIC BLOCKED (use http://localhost)');
         voiceEnabled = false;

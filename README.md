@@ -35,6 +35,7 @@ Then open `http://localhost:8765/dashboard.html`.
   - *"what should I handle first"* — reads out your top open task
   - *"add task \<whatever\>"* / *"remember to \<whatever\>"* — adds a task
   - *"stop"* — cancels, and works as a barge-in mid-briefing
+  - **anything else** — treated as an open-ended question. Once you pause, it's sent to a small serverless proxy that asks Claude (with your own API key, kept server-side) and speaks the answer back. See **Ask JARVIS setup** below — this needs one one-time deployment step before it works.
 - **Self-aware spoken briefing** — clicking **BRIEF ME** builds a briefing sentence fresh, at click-time, from the real current date, your actual open tasks, and the live-fetched news, then speaks it with the browser's built-in speech synthesis (prefers a British `en-GB` male voice if one is installed). It's never reading stale, pre-recorded content. `jarvis_brief.mp3` / `jarvis_brief.txt` are kept only as a fallback for browsers with no speech synthesis support.
 - **Live date and clock** — the date and time in the top-left/top-right are computed from the browser's real clock on every tick, not read from `jarvis_data.js`. Nothing to keep updated by hand.
 
@@ -57,6 +58,23 @@ window.JARVIS_DATA = {
 Date/time are no longer part of the data file — the dashboard always shows and speaks the real current date and clock.
 
 `jarvis_brief.mp3` / `jarvis_brief.txt` are legacy fallback assets for browsers without speech synthesis support. To regenerate them after editing `jarvis_brief.txt`, use any TTS tool of your choice — they were originally generated with [edge-tts](https://github.com/rany2/edge-tts) (`en-GB-RyanNeural`, `--rate=-8% --pitch=-3Hz`).
+
+## Ask JARVIS setup (voice Q&A)
+
+Free-form voice questions ("Hey JARVIS, what's the weather like for a Mars launch window") are answered
+by Claude through a tiny serverless proxy — [`jarvis-ask-api`](https://github.com/JoeyHanma69/jarvis-ask-api) —
+so your Anthropic API key never sits in the browser. One-time setup:
+
+1. Go to https://vercel.com/new and import the `jarvis-ask-api` repo.
+2. Before deploying, add an environment variable **`ANTHROPIC_API_KEY`** with a key from
+   https://console.anthropic.com/settings/keys.
+3. Deploy. Vercel gives you a URL like `https://jarvis-ask-api.vercel.app`.
+4. In `dashboard.html`, find `ASK_ENDPOINT` near the top of the `<script>` block and set it to
+   `https://<your-project>.vercel.app/api/ask`, then push the change.
+
+Until this is set up, canned commands (brief me, add task, what's first, stop) still work by voice —
+only open-ended questions need the proxy, and they'll fail gracefully with a spoken apology if it's
+unreachable.
 
 ## Notes
 
