@@ -35,7 +35,7 @@ Then open `http://localhost:8765/dashboard.html`.
   - *"what should I handle first"* — reads out your top open task
   - *"add task \<whatever\>"* / *"remember to \<whatever\>"* — adds a task
   - *"stop"* — cancels, and works as a barge-in mid-briefing
-  - **anything else** — treated as an open-ended question. Once you pause, it's sent straight to a local [Ollama](https://ollama.com) server on this machine and the answer is spoken back — no API key, no cloud, nothing leaves your computer. See **Ask JARVIS setup** below for the one-time setup.
+  - **anything else** — treated as an open-ended question. Once you pause, it's sent to the Gemini API with Google Search grounding enabled, so the answer can reflect real, current information — not a frozen training cutoff — and it's spoken back. See **Ask JARVIS setup** below for the one-time setup.
 - **Self-aware spoken briefing** — clicking **BRIEF ME** builds a briefing sentence fresh, at click-time, from the real current date, your actual open tasks, and the live-fetched news, then speaks it with the browser's built-in speech synthesis (prefers a British `en-GB` male voice if one is installed). It's never reading stale, pre-recorded content. `jarvis_brief.mp3` / `jarvis_brief.txt` are kept only as a fallback for browsers with no speech synthesis support.
 - **Live date and clock** — the date and time in the top-left/top-right are computed from the browser's real clock on every tick, not read from `jarvis_data.js`. Nothing to keep updated by hand.
 
@@ -59,37 +59,34 @@ Date/time are no longer part of the data file — the dashboard always shows and
 
 `jarvis_brief.mp3` / `jarvis_brief.txt` are legacy fallback assets for browsers without speech synthesis support. To regenerate them after editing `jarvis_brief.txt`, use any TTS tool of your choice — they were originally generated with [edge-tts](https://github.com/rany2/edge-tts) (`en-GB-RyanNeural`, `--rate=-8% --pitch=-3Hz`).
 
-## Ask JARVIS setup (voice Q&A via Ollama)
+## Ask JARVIS setup (voice Q&A via Gemini)
 
-Free-form voice questions ("Hey JARVIS, what's the weather like for a Mars launch window") are answered
-by a local [Ollama](https://ollama.com) server on your own machine — no API key, no cloud, nothing ever
-leaves your computer. One-time setup:
+Free-form voice questions ("Hey JARVIS, what's the latest on the Mars launch window") are answered by
+the Gemini API called directly from the browser, with Google Search grounding turned on — so JARVIS can
+speak with real current information instead of a frozen training cutoff. One-time setup:
 
-1. **Install Ollama** (if you haven't already) from https://ollama.com and pull a model:
-   ```
-   ollama pull llama3
-   ```
-   `dashboard.html` is set to `OLLAMA_MODEL = "llama3"` near the top of the `<script>` block — change
-   that constant if you'd rather use a different model you've pulled (`mistral`, `phi3`, etc).
+1. **Get an API key** at https://aistudio.google.com/apikey.
+2. **Restrict it before using it anywhere.** In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials),
+   open that key and set **Application restrictions → Websites** to your site, e.g.
+   `https://joeyhanma69.github.io/*` (add `http://localhost:8765/*` too if you also run it locally via
+   `start-jarvis.bat`). This means even if the key is visible in view-source, it only works from your
+   own domain.
+3. **Paste the restricted key into `jarvis_data.js`**, in the `gemini.apiKey` field near the top —
+   replacing the `YOUR_GEMINI_API_KEY_HERE` placeholder. Change `gemini.model` there too if you want a
+   different Gemini model than the default.
+4. Push the change. That's it — no backend, no deploy, works from anywhere the dashboard is loaded
+   (unlike a local-only setup, since this calls Google's cloud, not something on your machine).
 
-2. **Allow the dashboard's origin to talk to Ollama.** By default Ollama only accepts requests from a
-   short allowlist of origins, which doesn't include GitHub Pages or `start-jarvis.bat`'s localhost port.
-   Set the `OLLAMA_ORIGINS` environment variable yourself (Settings → search "environment variables" →
-   Edit environment variables for your account → New):
-   - **Name:** `OLLAMA_ORIGINS`
-   - **Value:** `http://localhost:8765,https://joeyhanma69.github.io`
-
-   Then fully quit Ollama (right-click its tray icon → Quit) and reopen it so it picks up the change.
-
-3. Make sure Ollama is running (its tray icon, or `ollama serve`) whenever you want to ask JARVIS
-   something — it listens on `http://localhost:11434`.
+**Security note:** because `jarvis_data.js` lives in this public GitHub repo, anything you put in
+`apiKey` is publicly visible to anyone browsing the repo — the HTTP-referrer restriction in step 2 is
+what keeps that safe (a copied key simply won't be accepted from any other site). Never paste an
+*unrestricted* key here, and never paste any API key into a chat conversation, issue, or commit message
+— if one ever leaks that way, revoke and regenerate it immediately in Cloud Console.
 
 Canned commands (brief me, add task, what's first, stop) work by voice with no setup at all — only
-open-ended questions need Ollama, and they fail gracefully with a spoken apology if it's unreachable.
-
-Because Ollama only listens on your own machine, this only works when you're physically at this
-computer with Ollama running — visiting the GitHub Pages URL from elsewhere won't have anything to
-talk to.
+open-ended questions need Gemini, and they fail gracefully with a spoken apology if the key is missing
+or a request fails. Search grounding is billed per query on paid-tier projects — see
+[Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) — free-tier usage has its own limits.
 
 ## Notes
 

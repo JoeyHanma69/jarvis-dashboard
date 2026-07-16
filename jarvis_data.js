@@ -3,6 +3,24 @@
 // Edit the values below (or generate them from a script) and refresh dashboard.html.
 window.JARVIS_DATA = {
   greeting: "Good evening, sir. I trust the day has been kind to you.",
+
+  // Powers "Ask JARVIS anything" by voice — free-form questions after "Hey JARVIS"
+  // are answered by the Gemini API with Google Search grounding, so JARVIS can
+  // speak with real up-to-date information, not just a frozen training cutoff.
+  //
+  // 1. Get a key at https://aistudio.google.com/apikey
+  // 2. In Google Cloud Console, restrict that key by HTTP referrer to your site
+  //    (e.g. https://joeyhanma69.github.io/*) so a copied key is useless elsewhere.
+  // 3. Paste the restricted key below, replacing the placeholder.
+  //
+  // NEVER paste a key into a chat, issue, or commit message — only here, in a
+  // file that stays local to you (this repo is public, so a real key here would
+  // still be visible to anyone browsing it on GitHub; keep this file untracked
+  // or swap in a restricted key you're comfortable being public-but-limited).
+  gemini: {
+    apiKey: "YOUR_GEMINI_API_KEY_HERE",
+    model: "gemini-3.5-flash"
+  },
   // NOTE: date/time are no longer read from here — the dashboard always
   // shows and speaks the real current date and clock, computed live in
   // the browser, so there's nothing to keep updated by hand.

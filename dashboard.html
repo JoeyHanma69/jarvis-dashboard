@@ -375,12 +375,14 @@
   "use strict";
   var DATA = window.JARVIS_DATA || {};
 
-  // Ask JARVIS anything by voice — talks directly to a local Ollama server, so
-  // there's no API key, no cloud proxy, and nothing leaves your machine.
-  // Requires Ollama running locally (https://ollama.com) with OLLAMA_MODEL pulled,
-  // e.g. `ollama pull llama3`. See README.md for the one-time CORS setup.
-  var OLLAMA_ENDPOINT = "http://localhost:11434/api/chat";
-  var OLLAMA_MODEL = "llama3";
+  // Ask JARVIS anything by voice — calls the Gemini API directly from the browser
+  // with Google Search grounding enabled, so answers can reflect real up-to-date
+  // information instead of a frozen training cutoff. Put your own key in
+  // jarvis_data.js (DATA.gemini.apiKey) — restrict it by HTTP referrer in Google
+  // Cloud Console to this site's domain so a copied key can't be reused elsewhere.
+  // See README.md for full setup. Never put a real key directly in this file.
+  var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
+  var GEMINI_MODEL = (DATA.gemini && DATA.gemini.model) || "gemini-3.5-flash";
 
   /* ============================================================
      HUD DATA BINDING
@@ -798,13 +800,35 @@
     ].join('\n');
   }
 
-  // "Hey JARVIS, <any question>" — sent straight to a local Ollama server. No API
-  // key, no cloud proxy, nothing leaves this machine. Requires Ollama running
-  // (https://ollama.com) with OLLAMA_MODEL pulled — see README.md for setup,
-  // including the one-time OLLAMA_ORIGINS step needed for the browser to reach it.
+  // Pulls the model's final answer text out of an Interactions API response.
+  // The REST response is a "steps" array (thoughts, search calls, model output);
+  // we want the text content block(s) from the model_output step.
+  function extractInteractionText(data){
+    if (!data) return null;
+    if (typeof data.output_text === 'string' && data.output_text) return data.output_text;
+    var parts = [];
+    (data.steps || []).forEach(function(step){
+      if (step.type === 'model_output' && Array.isArray(step.content)){
+        step.content.forEach(function(block){
+          if (block.type === 'text' && block.text) parts.push(block.text);
+        });
+      }
+    });
+    return parts.length ? parts.join(' ') : null;
+  }
+
+  // "Hey JARVIS, <any question>" — sent to the Gemini API with Google Search
+  // grounding, so it can answer with real current information, then spoken back.
   function askJarvis(question){
     pushLog('VOICE', 'question — ' + question);
     setVoiceStatus('voice-thinking', 'VOICE: THINKING…');
+
+    var apiKey = DATA.gemini && DATA.gemini.apiKey;
+    if (!apiKey || /YOUR[_-]?GEMINI/i.test(apiKey)){
+      pushLog('SYS', 'no Gemini API key set — add one in jarvis_data.js (DATA.gemini.apiKey)');
+      speakText("My apologies, sir — I don't have a reasoning engine configured yet. A Gemini API key needs adding to the data file.");
+      return;
+    }
 
     var context = {
       date: formatDateLong(new Date()),
@@ -812,27 +836,33 @@
       news: newsCache.slice(0, 5).map(function(n){ return stripPoints(n.headline) + ' (' + n.source + ')'; })
     };
 
-    fetch(OLLAMA_ENDPOINT, {
+    fetch(GEMINI_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        stream: false,
-        messages: [
-          { role: 'system', content: buildAskSystemPrompt(context) },
-          { role: 'user', content: question }
-        ]
+        model: GEMINI_MODEL,
+        system_instruction: buildAskSystemPrompt(context),
+        input: question,
+        tools: [{ type: 'google_search' }]
       })
     })
       .then(function(r){ return r.json().catch(function(){ return {}; }); })
       .then(function(data){
-        var answer = (data && data.message && data.message.content) || "My apologies, sir — I've nothing to say to that just now.";
+        if (data && data.error){
+          pushLog('SYS', 'Gemini error — ' + (data.error.message || 'unknown'));
+          speakText("My apologies, sir — my reasoning engine returned an error just now.");
+          return;
+        }
+        var answer = extractInteractionText(data) || "My apologies, sir — I've nothing to say to that just now.";
         pushLog('JARVIS', answer.trim(), true);
         speakText(answer.trim());
       })
       .catch(function(){
-        pushLog('SYS', 'could not reach Ollama at ' + OLLAMA_ENDPOINT + ' — is it running?');
-        speakText("My apologies, sir — I can't reach my local reasoning engine just now. Is Ollama running?");
+        pushLog('SYS', 'could not reach Gemini — check your connection and API key');
+        speakText("My apologies, sir — I couldn't reach my reasoning engine just now.");
       });
   }
 
