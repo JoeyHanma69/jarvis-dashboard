@@ -3,7 +3,9 @@
 // Edit the values below (or generate them from a script) and refresh dashboard.html.
 window.JARVIS_DATA = {
   greeting: "Good evening, sir. I trust the day has been kind to you.",
-  generatedDate: "16 July 2026 · 22:10",
+  // NOTE: date/time are no longer read from here — the dashboard always
+  // shows and speaks the real current date and clock, computed live in
+  // the browser, so there's nothing to keep updated by hand.
 
   // your tool integrations — shown top-right
   connectors: [

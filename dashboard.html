@@ -380,15 +380,19 @@
   function fmtNum(n){ return n.toLocaleString('en-US'); }
   function pad(n){ return n<10 ? '0'+n : ''+n; }
 
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function formatDateLong(d){ return d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear(); }
+  function timeOfDay(d){ var h=d.getHours(); return h<12?'morning':(h<18?'afternoon':'evening'); }
+
   document.getElementById('greeting-text').textContent = (DATA.greeting || 'GOOD EVENING.').toUpperCase();
-  document.getElementById('date-text').textContent = DATA.generatedDate || '';
   document.getElementById('headline-text').textContent = DATA.headline || '';
 
-  // clock
+  // clock + live date — always the real current date/time, never a stale string from the data file
   function tickClock(){
     var d = new Date();
     document.getElementById('clock').textContent =
       pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+    document.getElementById('date-text').textContent = formatDateLong(d);
   }
   tickClock();
   setInterval(tickClock, 1000);
@@ -669,12 +673,59 @@
 
   /* ============================================================
      AUDIO / SPEAKING STATE
+     BRIEF ME now speaks a briefing built fresh at click-time — real
+     current date, real open tasks, real live-fetched headlines —
+     via the browser's built-in speech synthesis, so it's never
+     reading stale, pre-recorded content. Falls back to the static
+     jarvis_brief.mp3 only if the browser has no speech synthesis.
   ============================================================ */
   var briefBtn = document.getElementById('brief-btn');
   var audio = document.getElementById('brief-audio');
   var speaking = false;
   var speakEndTimer = null;
   var FALLBACK_SPEAK_MS = 7500;
+
+  var synth = window.speechSynthesis || null;
+  var chosenVoice = null;
+  function pickVoice(){
+    if (!synth) return null;
+    var voices = synth.getVoices();
+    if (!voices.length) return null;
+    return voices.find(function(v){ return /en-GB/i.test(v.lang) && /ryan|thomas|george|male/i.test(v.name); })
+      || voices.find(function(v){ return /en-GB/i.test(v.lang); })
+      || voices.find(function(v){ return /^en/i.test(v.lang); })
+      || voices[0];
+  }
+  if (synth){
+    chosenVoice = pickVoice();
+    synth.onvoiceschanged = function(){ chosenVoice = pickVoice(); };
+  }
+
+  function stripPoints(headline){ return headline.replace(/\s*\(\d+\s*pts\)\s*$/i, ''); }
+
+  function buildBriefingText(){
+    var now = new Date();
+    var parts = [];
+    parts.push('Good ' + timeOfDay(now) + ', sir.');
+    parts.push('Today is ' + formatDateLong(now) + '.');
+
+    var open = tasks.filter(function(t){ return !t.done; });
+    if (open.length){
+      parts.push('You have ' + open.length + (open.length === 1 ? ' task' : ' tasks') + ' outstanding. Top of the list: ' + open[0].text + '.');
+    } else {
+      parts.push('Your task list is clear.');
+    }
+
+    if (newsCache.length){
+      parts.push('In technology news:');
+      newsCache.slice(0, 3).forEach(function(n){
+        parts.push(stripPoints(n.headline) + ', via ' + n.source + '.');
+      });
+    }
+
+    parts.push(DATA.closer || 'I remain, as ever, at your service.');
+    return parts.join(' ');
+  }
 
   function setSpeaking(on){
     speaking = on;
@@ -685,6 +736,7 @@
   function stopSpeaking(){
     clearTimeout(speakEndTimer);
     try { audio.pause(); } catch(e){}
+    if (synth){ try { synth.cancel(); } catch(e){} }
     setSpeaking(false);
     suppressVoiceForSpeech(false);
   }
@@ -693,11 +745,24 @@
     clearTimeout(speakEndTimer);
     setSpeaking(true);
     suppressVoiceForSpeech(true);
+
+    if (synth){
+      var utter = new SpeechSynthesisUtterance(buildBriefingText());
+      if (chosenVoice) utter.voice = chosenVoice;
+      utter.rate = 0.97;
+      utter.pitch = 0.9;
+      utter.onend = stopSpeaking;
+      utter.onerror = stopSpeaking;
+      try { synth.cancel(); } catch(e){}
+      synth.speak(utter);
+      return;
+    }
+
+    // fallback for browsers with no speech synthesis: play the static mp3
     try {
       audio.currentTime = 0;
       var p = audio.play();
       if (p && p.catch) p.catch(function(){
-        // no audio file present / autoplay blocked — synthetic envelope still runs
         speakEndTimer = setTimeout(stopSpeaking, FALLBACK_SPEAK_MS);
       });
     } catch(e){
@@ -707,14 +772,14 @@
 
   audio.addEventListener('ended', stopSpeaking);
   audio.addEventListener('error', function(){
-    if (speaking){
+    if (speaking && !synth){
       speakEndTimer = setTimeout(stopSpeaking, FALLBACK_SPEAK_MS);
     }
   });
 
   briefBtn.addEventListener('click', function(){
     if (speaking) { stopSpeaking(); }
-    else { pushLog('VOICE', 'briefing playback started'); startSpeaking(); }
+    else { pushLog('VOICE', 'briefing started — live date, tasks and news'); startSpeaking(); }
   });
 
   // expose for the render loop
